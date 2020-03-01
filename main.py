@@ -5,6 +5,7 @@ import cv2 as cv
 import imutils
 from imutils import contours
 from imutils.perspective import four_point_transform
+import numpy as np
 
 """
 识别步骤
@@ -28,6 +29,37 @@ DIGITS_LOOKUP = {
     (1, 1, 1, 1, 1, 1, 1): 8,
     (1, 1, 1, 1, 0, 1, 1): 9,
 }
+classifier = "resources/svm_led.data"
+
+
+def generator_data(image):
+    cnts, _ = cv.findContours(image, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    rois = []
+    for c in range(len(cnts)):
+        box = cv.boundingRect(cnts[c])
+        if box[3] < 10:
+            continue
+        rois.append(box)
+    num = len(rois)
+    for i in range(num):
+        for j in range(i + 1, num, 1):
+            x1, y1, w1, h1 = rois[i]
+            x2, y2, w2, h2 = rois[j]
+            if x2 < x1:
+                temp = rois[j]
+                rois[j] = rois[i]
+                rois[i] = temp
+    bgr = cv.cvtColor(image, cv.COLOR_GRAY2BGR)
+    index = 0
+    digit_data = np.zeros((num, 30 * 50), dtype=np.float32)
+    for x, y, w, h in rois:
+        # cv.putText(bgr, str(index), (x, y+10), cv.FONT_HERSHEY_PLAIN, 1.0, (0, 255, 0), 1)
+        digit = image[y: y + h, x: x + w]
+        img = cv.resize(digit, (30, 50))
+        row = np.reshape(img, (-1, 30 * 50))
+        digit_data[index] = row
+        index += 1
+    return digit_data, rois
 
 
 def main():
@@ -72,14 +104,20 @@ def main():
 
     digit_cnts = contours.sort_contours(digit_cnts, method="left-to-right")[0]
     digits = []
-    i = 0
+
+    svm = cv.ml.SVM_load(classifier)
+
+    # i = 0
     for cnt in digit_cnts:
         # extract the digit ROI
         (x, y, w, h) = cv.boundingRect(cnt)
         roi = thresh[y:y + h, x:x + w]
-        cv.imwrite("./resources/train_data/{}.jpeg".format(str(i)), roi, [cv.IMWRITE_JPEG_QUALITY, 100])
-        i = i + 1
-        cv.imshow("roi", roi)
+        # cv.imwrite("./resources/train_data/{}.jpeg".format(str(i)), roi, [cv.IMWRITE_JPEG_QUALITY, 100])
+        # i = i + 1
+        # cv.imshow("roi", roi)
+        data, boxes = generator_data(roi)
+        result = svm.predict(data)[1]
+        digits.append(str(np.int32(result[0][0])))
         cv.waitKey(0)
         # compute the width and height of each of the 7 segments
         # we are going to examine
@@ -113,9 +151,9 @@ def main():
         # digits.append(digit)
         # cv.putText(output, str(digit), (x - 10, y - 10), cv.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
 
-    # print(u"{}{}.{} \u00b0C".format(*digits))
+    print(u"{}{}.{} \u00b0C".format(*digits))
 
-    cv.imshow("thresh", thresh)
+    # cv.imshow("thresh", thresh)
     cv.imshow("output", output)
     cv.waitKey(0)
 
