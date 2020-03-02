@@ -85,7 +85,7 @@ def main():
         if 4 == len(approx):
             display_cnt = approx
             break
-    # 获得四个顶点后，我们可以通过四点透视变换提取LCD：
+    # 获得四个顶点后，通过四点透视变换提取LCD：
     warped = four_point_transform(gray, display_cnt.reshape(4, 2))
     output = four_point_transform(image, display_cnt.reshape(4, 2))
     # _, thresh = cv.threshold(warped, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU)
